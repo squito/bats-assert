@@ -191,10 +191,21 @@ assert_output() {
     case "$1" in
       -p|--partial) is_mode_partial=1; shift ;;
       -e|--regexp) is_mode_regexp=1; shift ;;
+      -f|--file)
+        shift
+        input_file=$1
+        shift
+        ;;
       --) shift; break ;;
       *) break ;;
     esac
   done
+
+  if [ -n $input_file ]; then
+    check=$(<"$input_file")
+  else
+    check=$output
+  fi
 
   if (( is_mode_partial )) && (( is_mode_regexp )); then
     echo "\`--partial' and \`--regexp' are mutually exclusive" \
@@ -215,26 +226,26 @@ assert_output() {
         | fail
       return $?
     fi
-    if ! [[ $output =~ $expected ]]; then
+    if ! [[ $check =~ $expected ]]; then
       batslib_print_kv_single_or_multi 6 \
           'regexp'  "$expected" \
-          'output' "$output" \
+          'output' "$check" \
         | batslib_decorate 'regular expression does not match output' \
         | fail
     fi
   elif (( is_mode_partial )); then
-    if [[ $output != *"$expected"* ]]; then
+    if [[ $check != *"$expected"* ]]; then
       batslib_print_kv_single_or_multi 9 \
           'substring' "$expected" \
-          'output'    "$output" \
+          'output'    "$check" \
         | batslib_decorate 'output does not contain substring' \
         | fail
     fi
   else
-    if [[ $output != "$expected" ]]; then
+    if [[ $check != "$expected" ]]; then
       batslib_print_kv_single_or_multi 8 \
           'expected' "$expected" \
-          'actual'   "$output" \
+          'actual'   "$check" \
         | batslib_decorate 'output differs' \
         | fail
     fi
