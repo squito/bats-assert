@@ -203,8 +203,12 @@ assert_output() {
 
   if [ -n $input_file ]; then
     check=$(<"$input_file")
+    out_name="$input_file"
+    out_key="file contents"
   else
     check=$output
+    out_name="output"
+    out_key="output"
   fi
 
   if (( is_mode_partial )) && (( is_mode_regexp )); then
@@ -229,16 +233,16 @@ assert_output() {
     if ! [[ $check =~ $expected ]]; then
       batslib_print_kv_single_or_multi 6 \
           'regexp'  "$expected" \
-          'output' "$check" \
-        | batslib_decorate 'regular expression does not match output' \
+          "$out_key"    "$check" \
+        | batslib_decorate "regular expression does not match $out_name" \
         | fail
     fi
   elif (( is_mode_partial )); then
     if [[ $check != *"$expected"* ]]; then
       batslib_print_kv_single_or_multi 9 \
           'substring' "$expected" \
-          'output'    "$check" \
-        | batslib_decorate 'output does not contain substring' \
+          "$out_key"    "$check" \
+        | batslib_decorate "$out_name does not contain substring" \
         | fail
     fi
   else
@@ -246,7 +250,7 @@ assert_output() {
       batslib_print_kv_single_or_multi 8 \
           'expected' "$expected" \
           'actual'   "$check" \
-        | batslib_decorate 'output differs' \
+        | batslib_decorate '$out_name differs' \
         | fail
     fi
   fi
