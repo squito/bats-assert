@@ -299,10 +299,25 @@ refute_output() {
     case "$1" in
       -p|--partial) is_mode_partial=1; shift ;;
       -e|--regexp) is_mode_regexp=1; shift ;;
+      -f|--file)
+        shift
+        input_file=$1
+        shift
+        ;;
       --) shift; break ;;
       *) break ;;
     esac
   done
+
+  if [ -n $input_file ]; then
+    check=$(<"$input_file")
+    out_name="$input_file"
+    out_key="file contents"
+  else
+    check=$output
+    out_name="output"
+    out_key="output"
+  fi
 
   if (( is_mode_partial )) && (( is_mode_regexp )); then
     echo "\`--partial' and \`--regexp' are mutually exclusive" \
@@ -324,26 +339,26 @@ refute_output() {
 
   # Matching.
   if (( is_mode_regexp )); then
-    if [[ $output =~ $unexpected ]] || (( $? == 0 )); then
+    if [[ $check =~ $unexpected ]] || (( $? == 0 )); then
       batslib_print_kv_single_or_multi 6 \
           'regexp'  "$unexpected" \
-          'output' "$output" \
-        | batslib_decorate 'regular expression should not match output' \
+          "$out_key" "$check" \
+        | batslib_decorate "regular expression should not match $out_name" \
         | fail
     fi
   elif (( is_mode_partial )); then
-    if [[ $output == *"$unexpected"* ]]; then
+    if [[ $check == *"$unexpected"* ]]; then
       batslib_print_kv_single_or_multi 9 \
           'substring' "$unexpected" \
-          'output'    "$output" \
-        | batslib_decorate 'output should not contain substring' \
+          "$out_key"    "$check" \
+        | batslib_decorate "$out_name should not contain substring" \
         | fail
     fi
   else
-    if [[ $output == "$unexpected" ]]; then
+    if [[ $check == "$unexpected" ]]; then
       batslib_print_kv_single_or_multi 6 \
-          'output' "$output" \
-        | batslib_decorate 'output equals, but it was expected to differ' \
+          "$out_key" "$check" \
+        | batslib_decorate "$out_name equals, but it was expected to differ" \
         | fail
     fi
   fi
@@ -415,10 +430,27 @@ assert_line() {
         ;;
       -p|--partial) is_mode_partial=1; shift ;;
       -e|--regexp) is_mode_regexp=1; shift ;;
+      -f|--file)
+        shift
+        input_file=$1
+        shift
+        ;;
       --) shift; break ;;
       *) break ;;
     esac
   done
+
+  if [ -n $input_file ]; then
+    check=$(<"$input_file")
+    IFS=$'\n' read -rd '' -a check_lines <<<"$check"
+    out_name="$input_file"
+    out_key="file contents"
+  else
+    check=$output
+    check_lines=(${lines[@]})
+    out_name="output"
+    out_key="output"
+  fi
 
   if (( is_mode_partial )) && (( is_mode_regexp )); then
     echo "\`--partial' and \`--regexp' are mutually exclusive" \
@@ -441,29 +473,29 @@ assert_line() {
   if (( is_match_line )); then
     # Specific line.
     if (( is_mode_regexp )); then
-      if ! [[ ${lines[$idx]} =~ $expected ]]; then
+      if ! [[ ${check_lines[$idx]} =~ $expected ]]; then
         batslib_print_kv_single 6 \
             'index' "$idx" \
             'regexp' "$expected" \
-            'line'  "${lines[$idx]}" \
+            'line'  "${check_lines[$idx]}" \
           | batslib_decorate 'regular expression does not match line' \
           | fail
       fi
     elif (( is_mode_partial )); then
-      if [[ ${lines[$idx]} != *"$expected"* ]]; then
+      if [[ ${check_lines[$idx]} != *"$expected"* ]]; then
         batslib_print_kv_single 9 \
             'index'     "$idx" \
             'substring' "$expected" \
-            'line'      "${lines[$idx]}" \
+            'line'      "${check_lines[$idx]}" \
           | batslib_decorate 'line does not contain substring' \
           | fail
       fi
     else
-      if [[ ${lines[$idx]} != "$expected" ]]; then
+      if [[ ${check_lines[$idx]} != "$expected" ]]; then
         batslib_print_kv_single 8 \
             'index'    "$idx" \
             'expected' "$expected" \
-            'actual'   "${lines[$idx]}" \
+            'actual'   "${check_lines[$idx]}" \
           | batslib_decorate 'line differs' \
           | fail
       fi
@@ -472,8 +504,8 @@ assert_line() {
     # Contained in output.
     if (( is_mode_regexp )); then
       local -i idx
-      for (( idx = 0; idx < ${#lines[@]}; ++idx )); do
-        [[ ${lines[$idx]} =~ $expected ]] && return 0
+      for (( idx = 0; idx < ${#check_lines[@]}; ++idx )); do
+        [[ ${check_lines[$idx]} =~ $expected ]] && return 0
       done
       { local -ar single=(
           'regexp'  "$expected"
@@ -489,14 +521,14 @@ assert_line() {
         | fail
     elif (( is_mode_partial )); then
       local -i idx
-      for (( idx = 0; idx < ${#lines[@]}; ++idx )); do
-        [[ ${lines[$idx]} == *"$expected"* ]] && return 0
+      for (( idx = 0; idx < ${#check_lines[@]}; ++idx )); do
+        [[ ${check_lines[$idx]} == *"$expected"* ]] && return 0
       done
       { local -ar single=(
           'substring' "$expected"
         )
         local -ar may_be_multi=(
-          'output'    "$output"
+          'output'    "$check"
         )
         local -ir width="$( batslib_get_max_single_line_key_width \
                               "${single[@]}" "${may_be_multi[@]}" )"
@@ -506,14 +538,14 @@ assert_line() {
         | fail
     else
       local -i idx
-      for (( idx = 0; idx < ${#lines[@]}; ++idx )); do
-        [[ ${lines[$idx]} == "$expected" ]] && return 0
+      for (( idx = 0; idx < ${#check_lines[@]}; ++idx )); do
+        [[ ${check_lines[$idx]} == "$expected" ]] && return 0
       done
       { local -ar single=(
           'line'   "$expected"
         )
         local -ar may_be_multi=(
-          'output' "$output"
+          'output' "$check"
         )
         local -ir width="$( batslib_get_max_single_line_key_width \
                             "${single[@]}" "${may_be_multi[@]}" )"
